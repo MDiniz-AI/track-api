@@ -1,0 +1,45 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Arquivos de log e dependências
+npm-debug.log
+yarn-error.log
+
+# Pastas de dependências (MUITO IMPORTANTE)
+node_modules/
+*/node_modules/
+
+# Arquivos de ambiente com segredos
+.env
+.env.*
+*/*.env
+*/*.env.*
+
+# Arquivos de build do Vite (para o frontend)
+/frontend/app/dist
+/frontend/app/.vite
+
+# Arquivos de sistema operacional
+.DS_Store
+Thumbs.db
