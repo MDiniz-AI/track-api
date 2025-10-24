@@ -1,38 +1,51 @@
-// backend/trackingService.js
+// backend/trackingService.js - VERSÃO FINAL (WONCA LABS API)
 
-// 1. Importa a biblioteca que faz a "mágica" de consultar os Correios
-import { rastrearEncomendas } from 'rastreio-correios';
-
-// 2. Esta é a função principal do nosso serviço
-// Ela é 'async' porque a consulta na internet pode demorar.
 async function getLatestStatus(trackingCode) {
-  try {
-    // 3. Chama a biblioteca com o código de rastreio.
-    //    A biblioteca espera uma lista de códigos, então passamos nosso código dentro de um array [].
-    const result = await rastrearEncomendas([trackingCode]);
+  // 1. Pegamos a chave de API do nosso .env
+  const apiKey = process.env.WONCA_API_KEY;
 
-    // 4. A biblioteca retorna um resultado complexo. Vamos extrair o que importa.
-    //    Verificamos se o resultado existe e se tem eventos (o histórico de status).
-    if (result && result.length > 0 && result[0].eventos && result[0].eventos.length > 0) {
+  if (!apiKey) {
+    console.error('ERRO: A chave da API da Wonca Labs (WONCA_API_KEY) não está configurada no .env');
+    return 'Falha na configuração';
+  }
+
+  const url = 'https://api-labs.wonca.com.br/wonca.labs.v1.LabsService/Track';
+
+  try {
+    // 2. Fazemos a chamada POST, exatamente como na documentação
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // O formato da autorização é 'Apikey SEU_TOKEN'
+        'Authorization': `Apikey ${apiKey}`
+      },
+      // O corpo da requisição é um JSON com a chave 'code'
+      body: JSON.stringify({ "code": trackingCode })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error(`Erro da API Wonca Labs para o código ${trackingCode}:`, data);
+      return 'Falha na API';
+    }
+    
+    // 3. Analisamos a resposta para pegar o status mais recente.
+    //    A API retorna uma lista 'events'. O primeiro (índice 0) é o mais novo.
+    if (data && data.events && data.events.length > 0) {
+      const latestEvent = data.events[0];
       
-      // 5. O primeiro evento (índice 0) é sempre o mais recente.
-      const latestEvent = result[0].eventos[0];
-      
-      // 6. Retornamos a descrição do status (ex: "Objeto postado", "Objeto saiu para entrega ao destinatário").
-      return latestEvent.descricao;
+      // 4. Retornamos o campo 'label' do evento.
+      return latestEvent.label;
     }
 
-    // Se não encontrou eventos, retorna null.
-    return null;
+    return 'Status não encontrado';
 
   } catch (error) {
-    // Se a biblioteca der um erro (ex: código inválido, site dos Correios fora do ar),
-    // nós capturamos o erro e o registramos no nosso console.
-    console.error(`Erro ao rastrear o código ${trackingCode}:`, error.message);
-    // Retornamos null para indicar que a busca falhou.
-    return null;
+    console.error(`Erro ao conectar com a API da Wonca Labs para o código ${trackingCode}:`, error.message);
+    return 'Falha ao rastrear';
   }
 }
 
-// 7. Exportamos nossa função para que outros arquivos (como o nosso robô) possam usá-la.
 export { getLatestStatus };

@@ -85,8 +85,10 @@ app.post('/packages', authMiddleware, async (req, res) => {
     // 1. Agora pegamos TODOS os novos campos que o frontend envia
     const { tracking_code, title, carrier, store_name } = req.body;
 
+    const upperCaseTrackingCode = tracking_code ? tracking_code.toUpperCase() : null;
+
     // Validação básica
-    if (!tracking_code || !title) {
+    if (!upperCaseTrackingCode || !title) {
       return res.status(400).send({ message: 'Código de rastreio e título são obrigatórios.' });
     }
 
@@ -94,7 +96,7 @@ app.post('/packages', authMiddleware, async (req, res) => {
     // na lista de colunas quanto na lista de valores.
     const createdPackage = await sql`
       INSERT INTO packages (user_id, tracking_code, title, carrier, store_name)
-      VALUES (${userId}, ${tracking_code}, ${title}, ${carrier}, ${store_name})
+      VALUES (${userId}, ${upperCaseTrackingCode}, ${title}, ${carrier}, ${store_name})
       RETURNING *
     `;
 
@@ -228,8 +230,10 @@ app.put('/packages/:id', authMiddleware, async (req, res) => {
     // 2. Pegamos os novos dados que o frontend enviou no corpo da requisição.
     const { title, tracking_code, carrier, store_name } = req.body;
 
+    const upperCaseTrackingCode = tracking_code ? tracking_code.toUpperCase() : null;
+
     // Validação básica
-    if (!tracking_code || !title) {
+    if (!upperCaseTrackingCode || !title) {
       return res.status(400).send({ message: 'Código de rastreio e título são obrigatórios.' });
     }
 
@@ -299,26 +303,35 @@ app.delete('/packages/:id', authMiddleware, async (req, res) => {
   }
 });
 
-cron.schedule('0 * * * *', async () => {
+// Em backend/index.js, dentro do cron.schedule
+
+// ...
+cron.schedule('0 * * * *', async () => { // Garanta que está no modo de 1 minuto para teste
   console.log('🤖 Iniciando tarefa agendada de atualização de status...');
   
   try {
-    // 1. Busca todos os pacotes que ainda não foram marcados como entregues.
     const packagesToUpdate = await sql`
       SELECT * FROM packages WHERE is_delivered = false
     `;
 
     console.log(`Encontrados ${packagesToUpdate.length} pacotes para verificar.`);
 
-    // 2. Passa por cada pacote da lista.
+    // O loop começa aqui
     for (const pkg of packagesToUpdate) {
-      // 3. Usa nosso serviço para buscar o status mais recente nos Correios.
+      // ✅ ESPIÃO 1: O que estamos tentando verificar?
+      console.log(`\n-- Verificando pacote: "${pkg.title}" (Código: ${pkg.tracking_code})`);
+
+      // Chama o cérebro do robô
       const newStatus = await getLatestStatus(pkg.tracking_code);
 
-      // 4. Se encontrou um novo status e ele é diferente do que já temos salvo...
+      // ✅ ESPIÃO 2: O que a API nos disse?
+      console.log(`-- Status recebido da API: "${newStatus}"`);
+      // ✅ ESPIÃO 3: Qual é o status que já temos salvo no banco?
+      console.log(`-- Status atual no banco: "${pkg.status}"`);
+
+      // A lógica de decisão
       if (newStatus && newStatus !== pkg.status) {
         
-        // 5. ...atualiza o pacote no banco de dados!
         await sql`
           UPDATE packages
           SET 
@@ -328,6 +341,13 @@ cron.schedule('0 * * * *', async () => {
           WHERE id = ${pkg.id}
         `;
         console.log(`✅ Pacote ${pkg.id} atualizado para: "${newStatus}"`);
+      } else {
+        // ✅ ESPIÃO 4: Por que não atualizamos?
+        if (!newStatus) {
+            console.log('❌ Nenhuma atualização: a API não retornou um novo status.');
+        } else {
+            console.log('➡️ Nenhuma atualização: o status recebido é o mesmo que já está no banco.');
+        }
       }
     }
   } catch (error) {
